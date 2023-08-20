@@ -105,7 +105,7 @@ router.post(
   }
 );
 
-// ROUTE 1: Get login user details using : POST "/api/auth/user" Login required
+// ROUTE 3: Get login user details using : POST "/api/auth/user" Login required
 
 router.post("/user-info", useMiddleware, async (req, res) => {
   try {

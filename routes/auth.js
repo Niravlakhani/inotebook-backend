@@ -1,7 +1,11 @@
 const express = require("express");
 const User = require("../models/User");
 const router = express.Router();
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
+
+const JWT_SECRET = "LakhaniFamily!";
 
 // create a user using: POST "/api/auth/create-user". no required authentication
 router.post(
@@ -13,16 +17,29 @@ router.post(
       min: 5,
     }),
   ],
-  (req, res) => {
+  async (req, res) => {
     // if there are error , return Bad request and the error
     const validate = validationResult(req);
     if (validate.isEmpty()) {
+      // salt for encrypt password
+      const salt = await bcrypt.genSalt(10);
+      // encrypt password
+
+      const password = await bcrypt.hash(req.body.password, salt);
       User.create({
         name: req.body.name,
         email: req.body.email,
-        password: req.body.password,
+        password: password,
       })
-        .then((user) => res.send(user))
+        .then((user) => {
+          const userInfo = {
+            name: req.body.name,
+            email: req.body.email,
+            password: password,
+          };
+          const token = jwt.sign(userInfo, JWT_SECRET);
+          res.send({ token });
+        })
         .catch((error) => {
           if (error.code === 11000) {
             // Duplicate key error (email already exists)

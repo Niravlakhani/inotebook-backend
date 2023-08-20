@@ -1,5 +1,6 @@
 const express = require("express");
 const User = require("../models/User");
+const useMiddleware = require("../middleware/middleware");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -7,7 +8,7 @@ const { body, validationResult } = require("express-validator");
 
 const JWT_SECRET = "LakhaniFamily!";
 
-// create a user using: POST "/api/auth/create-user". no required authentication
+// ROUTE 1: create a user using: POST "/api/auth/create-user". no required authentication
 router.post(
   "/create-user",
   [
@@ -32,10 +33,11 @@ router.post(
         password: password,
       })
         .then((user) => {
+          console.log("user", user._id);
           const userInfo = {
-            name: req.body.name,
-            email: req.body.email,
-            password: password,
+            user: {
+              id: user.id,
+            },
           };
           const token = jwt.sign(userInfo, JWT_SECRET);
           res.send({ token });
@@ -57,5 +59,63 @@ router.post(
     }
   }
 );
+
+// ROUTE 2: Authenticate User : POST "api/auth/login". no required authentication
+
+router.post(
+  "/login",
+  [
+    body("email", "Enter a valid email").isEmail(),
+    body("password", "Password can not be blank").exists(),
+  ],
+  async (req, res) => {
+    const validate = validationResult(req);
+    if (!validate.isEmpty()) {
+      return res.status(400).json({ errors: validate.array() });
+    }
+
+    const { email, password } = req.body;
+    try {
+      const user = await User.findOne({ email });
+      console.log("user", user);
+      if (!user) {
+        return res
+          .status(400)
+          .json({ error: "Please try to login with correct credentials" });
+      }
+
+      const verifyPassword = await bcrypt.compare(password, user.password);
+      if (!verifyPassword) {
+        return res
+          .status(400)
+          .json({ error: "Please try to login with correct credentials" });
+      }
+
+      const payload = {
+        user: {
+          id: user.id,
+        },
+      };
+      const token = jwt.sign(payload, JWT_SECRET);
+      return res.send({ token });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).send({ error: "Internal Server Error" });
+    }
+  }
+);
+
+// ROUTE 1: Get login user details using : POST "/api/auth/user" Login required
+
+router.post("/user-info", useMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userData = await User.findById(userId).select("-password");
+    res.send(userData);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({ error: "Internal Server Error" });
+  }
+});
 
 module.exports = router;
